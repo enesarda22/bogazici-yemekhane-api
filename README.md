@@ -5,6 +5,7 @@ A RESTful api of bogazici university cafeteria meals.
 
 - [Node.js](https://nodejs.org/en/)
 - [Express](https://expressjs.com/)
+- [Mongoose](https://mongoosejs.com)
 
 ## Setup
 
