@@ -18,7 +18,3 @@ npm i
 
 ## Use
 A get request to /meals fetches all the meals until the end of the month.
-
-## License
-
-This repo is released under the [MIT License](https://github.com/Teknasyon-Teknoloji/boun-menu-api/blob/master/LICENSE).
