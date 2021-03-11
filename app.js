@@ -1,5 +1,4 @@
 const express = require("express");
-const ejs = require("ejs");
 const HTMLParser = require('node-html-parser');
 const request = require('request');
 const mongoose = require("mongoose");
@@ -132,12 +131,12 @@ app.get("/meals", function(req, res) {
           if (err) {
             res.send(err);
           } else {
-            if(foundDays.length === 0) {
+            if (foundDays.length === 0) {
               setMonth(function() {
                 console.log("succesfully set the month");
                 setTimeout(function() {
                   res.redirect("/meals");
-                },3000);
+                }, 3000);
               });
             } else {
               res.send(foundDays);
@@ -156,15 +155,20 @@ app.get("/meals", function(req, res) {
 //request targeting specific date
 app.get("/meals/:date", function(req, res) {
   console.log(req.params.date);
+  Day.findOne({
+    date: req.params.date
+  }, function(err, foundDay) {
+    if (err) {
+      res.send(err);
+    } else {
+      res.send(foundDay);
+    }
+  });
+
 });
 
 
 
 app.listen(3000, function() {
   console.log("listening on port 3000");
-
-  findFood("lunch", "veggie", "10", function(foundFood) {
-    console.log(foundFood);
-  });
-
 });
