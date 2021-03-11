@@ -1,10 +1,11 @@
+require('dotenv').config();
 const express = require("express");
 const HTMLParser = require('node-html-parser');
 const request = require('request');
 const mongoose = require("mongoose");
 
 const app = express();
-mongoose.connect("mongodb://localhost:27017/cafeteriaDB", {
+mongoose.connect("mongodb+srv://admin-enes:"+ process.env.PASSWORD +"@cluster0.drsol.mongodb.net/cafeteriaDB", {
   useNewUrlParser: true
 });
 
@@ -167,8 +168,11 @@ app.get("/meals/:date", function(req, res) {
 
 });
 
+let port = process.env.PORT;
+if (port == null || port == "") {
+  port = 3000;
+}
 
-
-app.listen(3000, function() {
+app.listen(port, function() {
   console.log("listening on port 3000");
 });
