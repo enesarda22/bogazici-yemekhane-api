@@ -29,6 +29,8 @@ A get request to https://localhost:3000/meals fetches all the meals until the en
 
 A get request to https://localhost:3000/meals/:date fetches meals for the specified date. Date should of the form: YYYY-MM-DD
 
+First meal in a day block's meals array is lunch and the second one is dinner.
+
 ### Example codes
 
 This is the example website I deployed: https://bogazici-yemekhane-api.herokuapp.com
