@@ -120,6 +120,7 @@ app.get("/", function(req, res) {
   res.write("get request to /meals fetches whole month");
   res.write("get request to /meals/:date fetches specific day");
   res.write("date should be of the form YYYY-MM-DD");
+  res.send();
 });
 
 //request targeting this month
