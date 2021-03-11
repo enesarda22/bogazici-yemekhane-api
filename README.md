@@ -1,5 +1,5 @@
 # bogazici-yemekhane-api
-A RESTful api of bogazici university cafeteria meals.
+A RESTful api of bogazici university cafeteria menu.
 
 ## Technologies
 
