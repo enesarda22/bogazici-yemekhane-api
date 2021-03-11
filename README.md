@@ -18,4 +18,21 @@ npm i
 ```
 
 ## Use
-A get request to /meals fetches all the meals until the end of the month.
+
+Setup a mongodb server and run app.js typing
+
+```bash
+node app.js
+```
+
+A get request to https://localhost:3000/meals fetches all the meals until the end of the month.
+
+A get request to https://localhost:3000/meals/:date fetches meals for the specified date. Date should of the form: YYYY-MM-DD
+
+### Example codes
+
+This is the example website I deployed: https://bogazici-yemekhane-api.herokuapp.com
+
+https://bogazici-yemekhane-api.herokuapp.com/meals
+
+https://bogazici-yemekhane-api.herokuapp.com/meals/2021-03-15
