@@ -21,10 +21,13 @@ const foodSchema = new mongoose.Schema({
 });
 const Food = mongoose.model("food", foodSchema);
 
-const mealSchema = new mongoose.Schema({
+function Meal(foods) {
+  this.foods = foods;
+}
+
+const mealSchema = {
   foods: [foodSchema]
-});
-const Meal = mongoose.model("meal", mealSchema);
+};
 
 const daySchema = new mongoose.Schema({
   date: String,
@@ -34,6 +37,7 @@ const Day = mongoose.model("day", daySchema);
 
 const url = "https://yemekhane.boun.edu.tr/aylik-menu";
 const today = new Date().toISOString().slice(0, 10);
+const foodCategories = ["ana-yemekler", "corbalar", "vejetaryenvegan", "yardimci-yemekler", "secmeliler"];
 
 function addDay(date, _callback) {
 
@@ -62,9 +66,7 @@ function addDay(date, _callback) {
         }
       ]
     }, function(err, foundFoods) {
-      const dinnerMeal = new Meal({
-        foods: foundFoods
-      });
+      const dinnerMeal = new Meal(foundFoods);
 
       Food.find({
         $or: [{
@@ -84,9 +86,7 @@ function addDay(date, _callback) {
           }
         ]
       }, function(err, foundFoods) {
-        const lunchMeal = new Meal({
-          foods: foundFoods
-        });
+        const lunchMeal = new Meal(foundFoods);
 
         const newDay = new Day({
           date: date,
@@ -95,12 +95,13 @@ function addDay(date, _callback) {
 
         newDay.save(function(err) {
           if (!err) {
-            console.log("successfully saved");
+            console.log("day is successfully saved");
           }
         });
       });
     });
   });
+  _callback();
 }
 
 function addFood(category, name, _callback) {
@@ -233,6 +234,17 @@ app.get("/meals", function(req, res) {
             res.send(err);
           } else {
             if (foundDays.length === 0) {
+
+              foodCategories.forEach(function(category) {
+                request({uri: "http://localhost:3000/foods/"+category, method: "POST"}, function(err, res) {
+                  if(!err) {
+                    console.log("succesfully updated category " + category);
+                  } else {
+                    console.log(err);
+                  }
+                });
+              });
+
               setMonth(function() {
                 console.log("succesfully set the month");
                 setTimeout(function() {
@@ -281,7 +293,7 @@ app.get("/foods/:category", function(req, res) {
 
   const category = req.params.category
 
-  if (category !== "ana-yemekler" && category !== "corbalar" && category !== "vejetaryenvegan" && category !== "yardimci-yemekler" && category !== "secmeliler") {
+  if (!foodCategories.includes(category)) {
     res.redirect("/meals");
   } else {
     Food.find({
@@ -301,14 +313,13 @@ app.post("/foods/:category", function(req, res) {
 
   const category = req.params.category;
 
-  if (category !== "ana-yemekler" && category !== "corbalar" && category !== "vejetaryenvegan" && category !== "yardimci-yemekler" && category !== "secmeliler") {
-    res.redirect("/meals");
-  } else {
+  if (foodCategories.includes(category)) {
     setFoods(category, function() {
-      res.send("succefully updated category " + category);
+      console.log("succefully updated category " + category);
     });
+  } else {
+    res.send("no such category exits");
   }
-
 
 });
 
