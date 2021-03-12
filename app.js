@@ -1,21 +1,33 @@
+require('dotenv').config();
 const express = require("express");
-const HTMLParser = require('node-html-parser');
 const request = require('request');
 const mongoose = require("mongoose");
+const _ = require("lodash");
+const cheerio = require('cheerio');
 
 const app = express();
+// mongoose.connect("mongodb+srv://admin-enes:" + process.env.PASSWORD + "@cluster0.drsol.mongodb.net/cafeteriaDB", {
+//   useNewUrlParser: true
+// });
 mongoose.connect("mongodb://localhost:27017/cafeteriaDB", {
   useNewUrlParser: true
 });
 
-const mealSchema = new mongoose.Schema({
-  main: String,
-  carb: String,
-  soup: String,
-  app: String,
-  veggie: String
+const foodSchema = new mongoose.Schema({
+  name: String,
+  category: String,
+  cal: String,
+  ingredients: [String]
 });
-const Meal = mongoose.model("meal", mealSchema);
+const Food = mongoose.model("food", foodSchema);
+
+function Meal(foods) {
+  this.foods = foods;
+}
+
+const mealSchema = {
+  foods: [foodSchema]
+};
 
 const daySchema = new mongoose.Schema({
   date: String,
@@ -25,80 +37,100 @@ const Day = mongoose.model("day", daySchema);
 
 const url = "https://yemekhane.boun.edu.tr/aylik-menu";
 const today = new Date().toISOString().slice(0, 10);
-const thisMonth = new Date().toISOString().slice(0, 8);
-
-function findFood(meal, part, day, _callback) {
-  let x;
-  let y;
-
-  request(url, function(err, res, body) {
-    const root = HTMLParser.parse(body);
-    switch (meal) {
-      case "dinner":
-        x = 1;
-        break;
-      case "lunch":
-        x = 2;
-        break;
-      default:
-        x = 1;
-    }
-    switch (part) {
-      case "main":
-        y = 7;
-        break;
-      case "carb":
-        y = 11;
-        break;
-      case "soup":
-        y = 5;
-        break;
-      case "app":
-        y = 13;
-        break;
-      case "veggie":
-        y = 9;
-        break;
-
-      default:
-        y = 7;
-
-    }
-
-    const str = '#aylik_menu-' + thisMonth + day + '-0 > div > div:nth-child(' + x + ') > div > div';
-    const foodName = root.querySelector(str).childNodes[1].childNodes[y].childNodes[1].childNodes[0].childNodes[0].rawText;
-    _callback(foodName);
-  });
-}
+const foodCategories = ["ana-yemekler", "corbalar", "vejetaryenvegan", "yardimci-yemekler", "secmeliler"];
 
 function addDay(date, _callback) {
 
   request(url, function(err, res, body) {
-    const root = HTMLParser.parse(body);
-    const dinnerStr = '#aylik_menu-' + date + '-0 > div > div:nth-child(1) > div > div';
-    const dinnerMeal = new Meal({
-      main: root.querySelector(dinnerStr).childNodes[1].childNodes[7].childNodes[1].childNodes[0].childNodes[0].rawText,
-      carb: root.querySelector(dinnerStr).childNodes[1].childNodes[11].childNodes[1].childNodes[0].childNodes[0].rawText,
-      soup: root.querySelector(dinnerStr).childNodes[1].childNodes[5].childNodes[1].childNodes[0].childNodes[0].rawText,
-      app: root.querySelector(dinnerStr).childNodes[1].childNodes[13].childNodes[1].childNodes[0].childNodes[0].rawText,
-      veggie: root.querySelector(dinnerStr).childNodes[1].childNodes[9].childNodes[1].childNodes[0].childNodes[0].rawText
+    const $ = cheerio.load(body);
+    const day = Number(date.slice(8, 10));
+    const dinnerCount = day * 2 - 2;
+    const lunchCount = day * 2 - 1;
+
+
+    Food.find({
+      $or: [{
+          name: _.startCase($(".views-field.views-field-field-anaa-yemek:eq(" + dinnerCount + ")").text())
+        },
+        {
+          name: _.startCase($(".views-field.views-field-field-yardimciyemek:eq(" + dinnerCount + ")").text())
+        },
+        {
+          name: _.startCase($(".views-field.views-field-field-ccorba:eq(" + dinnerCount + ")").text())
+        },
+        {
+          name: _.startCase($(".views-field.views-field-field-aperatiff:eq(" + dinnerCount + ")").text())
+        },
+        {
+          name: _.startCase($(".views-field.views-field-field-vejetarien:eq(" + dinnerCount + ")").text())
+        }
+      ]
+    }, function(err, foundFoods) {
+      const dinnerMeal = new Meal(foundFoods);
+
+      Food.find({
+        $or: [{
+            name: _.startCase($(".views-field.views-field-field-anaa-yemek:eq(" + lunchCount + ")").text())
+          },
+          {
+            name: _.startCase($(".views-field.views-field-field-yardimciyemek:eq(" + lunchCount + ")").text())
+          },
+          {
+            name: _.startCase($(".views-field.views-field-field-ccorba:eq(" + lunchCount + ")").text())
+          },
+          {
+            name: _.startCase($(".views-field.views-field-field-aperatiff:eq(" + lunchCount + ")").text())
+          },
+          {
+            name: _.startCase($(".views-field.views-field-field-vejetarien:eq(" + lunchCount + ")").text())
+          }
+        ]
+      }, function(err, foundFoods) {
+        const lunchMeal = new Meal(foundFoods);
+
+        const newDay = new Day({
+          date: date,
+          meals: [dinnerMeal, lunchMeal]
+        });
+
+        newDay.save(function(err) {
+          if (!err) {
+            console.log("day is successfully saved");
+          }
+        });
+      });
+    });
+  });
+  _callback();
+}
+
+function addFood(category, name, _callback) {
+  const route = "https://yemekhane.boun.edu.tr/" + category + "/" + _.kebabCase(name);
+
+  request(route, function(err, res, body) {
+
+    const $ = cheerio.load(body);
+    const calories = $(".field-item:eq(0)").text();
+    const ingredientsArr = [];
+
+    for (let i = 1; i < $(".field-item").length; i++) {
+      ingredientsArr.push($(".field-item:eq(" + i + ")").text());
+    }
+
+    Food.findOne({
+      name: name
+    }, function(err, foundFood) {
+      if (!foundFood) {
+        const newFood = new Food({
+          name: name,
+          category: category,
+          cal: calories,
+          ingredients: ingredientsArr
+        });
+        newFood.save();
+      }
     });
 
-    const lunchStr = '#aylik_menu-' + date + '-0 > div > div:nth-child(2) > div > div';
-    const lunchMeal = new Meal({
-      main: root.querySelector(lunchStr).childNodes[1].childNodes[7].childNodes[1].childNodes[0].childNodes[0].rawText,
-      carb: root.querySelector(lunchStr).childNodes[1].childNodes[11].childNodes[1].childNodes[0].childNodes[0].rawText,
-      soup: root.querySelector(lunchStr).childNodes[1].childNodes[5].childNodes[1].childNodes[0].childNodes[0].rawText,
-      app: root.querySelector(lunchStr).childNodes[1].childNodes[13].childNodes[1].childNodes[0].childNodes[0].rawText,
-      veggie: root.querySelector(lunchStr).childNodes[1].childNodes[9].childNodes[1].childNodes[0].childNodes[0].rawText
-    });
-
-    const newDay = new Day({
-      date: date,
-      meals: [dinnerMeal, lunchMeal]
-    });
-
-    newDay.save();
   });
   _callback();
 }
@@ -107,7 +139,7 @@ function setMonth(_callback) {
   const now = new Date();
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  for (var d = new Date(); d <= nextMonth; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(); d <= nextMonth; d.setDate(d.getDate() + 1)) {
     addDay(d.toISOString().slice(0, 10), function() {
       console.log(d + " is successfully set");
     });
@@ -115,7 +147,77 @@ function setMonth(_callback) {
   _callback();
 }
 
+function setFoods(category, _callback) {
+  let urlCategory = "";
+  switch (category) {
+    case "ana-yemekler":
+      urlCategory = "anaa-yemek";
+      break;
+    case "corbalar":
+      urlCategory = "ccorba";
+      break;
+    case "vejetaryenvegan":
+      urlCategory = "vejetarien";
+      break;
+    case "yardimci-yemekler":
+      urlCategory = "yardimciyemek";
+      break;
+    case "secmeliler":
+      urlCategory = "aperatiff";
+      break;
+    default:
+      urlCategory = "anaa-yemek";
+  }
 
+  request(url, function(err, res, body) {
+    const $ = cheerio.load(body);
+
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    for (let d = new Date(now.getFullYear(), now.getMonth(), 2); d <= nextMonth; d.setDate(d.getDate() + 1)) {
+      const day = Number(d.toISOString().slice(8, 10));
+
+      const dinnerCount = day * 2 - 2;
+      const lunchCount = day * 2 - 1;
+
+      const nameDinner = _.startCase($(".views-field.views-field-field-" + urlCategory + ":eq(" + dinnerCount + ")").text());
+      const nameLunch = _.startCase($(".views-field.views-field-field-" + urlCategory + ":eq(" + lunchCount + ")").text());
+
+      Food.findOne({
+        name: nameDinner
+      }, function(err, foundFood) {
+        if (!foundFood) {
+          addFood(category, nameDinner, function() {
+            console.log("succesfully added food");
+          });
+        }
+      });
+      Food.findOne({
+        name: nameLunch
+      }, function(err, foundFood) {
+        if (!foundFood) {
+          addFood(category, nameLunch, function() {
+            console.log("succesfully added food");
+          });
+        }
+      });
+    }
+  });
+  _callback();
+}
+
+
+app.get("/", function(req, res) {
+  res.write("GET to /meals\n");
+  res.write("to /meals/:date \t");
+  res.write("date should be of the form YYYY-MM-DD\n");
+  res.write("to /foods\n");
+  res.write("to /foods/:category\t");
+  res.write("allowed categories are: \"ana-yemekler\", \"corbalar\", \"vejetaryenvegan\", \"yardimci-yemekler\", \"secmeliler\"\n\n");
+  res.write("POST to /foods:categories\n");
+  res.send();
+});
 
 //request targeting this month
 app.get("/meals", function(req, res) {
@@ -132,6 +234,17 @@ app.get("/meals", function(req, res) {
             res.send(err);
           } else {
             if (foundDays.length === 0) {
+
+              foodCategories.forEach(function(category) {
+                request({uri: "http://localhost:3000/foods/"+category, method: "POST"}, function(err, res) {
+                  if(!err) {
+                    console.log("succesfully updated category " + category);
+                  } else {
+                    console.log(err);
+                  }
+                });
+              });
+
               setMonth(function() {
                 console.log("succesfully set the month");
                 setTimeout(function() {
@@ -154,21 +267,67 @@ app.get("/meals", function(req, res) {
 
 //request targeting specific date
 app.get("/meals/:date", function(req, res) {
-  console.log(req.params.date);
   Day.findOne({
     date: req.params.date
   }, function(err, foundDay) {
-    if (err) {
-      res.send(err);
-    } else {
+    if (foundDay) {
       res.send(foundDay);
+    } else {
+      res.redirect("/meals");
     }
   });
 
 });
 
+app.get("/foods", function(req, res) {
+  Food.find({}, function(err, foundFoods) {
+    if (err) {
+      res.send(err);
+    } else {
+      res.send(foundFoods);
+    }
+  })
+});
 
+app.get("/foods/:category", function(req, res) {
 
-app.listen(3000, function() {
+  const category = req.params.category
+
+  if (!foodCategories.includes(category)) {
+    res.redirect("/meals");
+  } else {
+    Food.find({
+      category: category
+    }, function(err, foundFoods) {
+      if (err) {
+        res.send(err);
+      } else {
+        res.send(foundFoods);
+      }
+    });
+  }
+
+});
+
+app.post("/foods/:category", function(req, res) {
+
+  const category = req.params.category;
+
+  if (foodCategories.includes(category)) {
+    setFoods(category, function() {
+      console.log("succefully updated category " + category);
+    });
+  } else {
+    res.send("no such category exits");
+  }
+
+});
+
+let port = process.env.PORT;
+if (port == null || port == "") {
+  port = 3000;
+}
+
+app.listen(port, function() {
   console.log("listening on port 3000");
 });
