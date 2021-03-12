@@ -28,7 +28,7 @@ node app.js
 |                  | GET                                          | POST             |
 | ---------------- | -------------------------------------------- | ---------------- |
 | /meals           | fetches all meals until the end of the month | -                |
-| /foods           | fetches all foods until the end of the month | -                |
+| /foods           | fetches all                                  | -                |
 | /meals/:date     | fetches all meals in specified day           | -                |
 | /foods/:category | fetches all foods in specified category      | updates category |
 
